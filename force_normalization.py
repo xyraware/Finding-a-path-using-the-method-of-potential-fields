@@ -1,10 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from collections import deque
 
 
 class PotentialFieldRobot:
-    def __init__(self, width, height, start, goal, obstacles, k_att=1.0, k_rep=100.0, influence_radius=1.5,
-                 step_size=0.1, max_steps=1000, k_rep_scale=10.0):
+    def __init__(self, width, height, start, goal, obstacles, k_att=1.0, k_rep=100.0,
+                 influence_radius=1.5, step_size=0.1, max_steps=1000, smooth_window=5):
         self.width = width
         self.height = height
         self.start = np.array(start, dtype=float)
@@ -16,11 +17,11 @@ class PotentialFieldRobot:
         self.rho0 = influence_radius
         self.step_size = step_size
         self.max_steps = max_steps
-        self.k_rep_scale = k_rep_scale
-        self.k_rep_scale = k_rep_scale
+        self.smooth_window = smooth_window
 
         self.current_pos = self.start.copy()
         self.path = [self.start.copy()]
+        self.force_buffer = deque(maxlen=smooth_window)
 
     def compute_attractive_force(self):
         return self.k_att * (self.goal - self.current_pos)
@@ -32,12 +33,17 @@ class PotentialFieldRobot:
             dist_mag = np.linalg.norm(dist_vec)
 
             if self.rho0 >= dist_mag > 0:
-                distance_factor = (self.rho0 / dist_mag) ** self.k_rep_scale
-                rep_force = self.k_rep * distance_factor * (1.0 / dist_mag - 1.0 / self.rho0) * (1.0 / dist_mag ** 2) * (
-                            dist_vec / dist_mag)
+                rep_force = self.k_rep * (1.0 / dist_mag - 1.0 / self.rho0) * (1.0 / dist_mag ** 2) * (
+                        dist_vec / dist_mag)
                 total_rep_force += rep_force
 
         return total_rep_force
+
+    def smooth_force(self, force):
+        self.force_buffer.append(force)
+        if len(self.force_buffer) == 1:
+            return force
+        return np.mean(self.force_buffer, axis=0)
 
     def find_path_and_animate(self):
         print("Starting pathfinding with dynamic visualization...")
@@ -55,9 +61,11 @@ class PotentialFieldRobot:
             f_rep = self.compute_repulsive_force()
             f_total = f_att + f_rep
 
-            force_mag = np.linalg.norm(f_total)
+            f_total_smoothed = self.smooth_force(f_total)
+
+            force_mag = np.linalg.norm(f_total_smoothed)
             if force_mag > 0:
-                direction = f_total / force_mag
+                direction = f_total_smoothed / force_mag
                 self.current_pos += self.step_size * direction
                 self.path.append(self.current_pos.copy())
             else:
@@ -110,8 +118,8 @@ if __name__ == '__main__':
         goal=GOAL_POS,
         obstacles=OBSTACLES,
         k_rep=150.0,
-        influence_radius=2,
-        k_rep_scale=10.0
+        influence_radius=1.7,
+        smooth_window=5
     )
 
     robot.find_path_and_animate()

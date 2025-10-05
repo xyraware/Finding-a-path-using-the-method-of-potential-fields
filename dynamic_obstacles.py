@@ -124,7 +124,7 @@ if __name__ == '__main__':
         k_rep=150.0,
         influence_radius=1.7,
         k_rep_scale=2.0,
-        obstacle_speed=0.1
+        obstacle_speed=0.07
     )
 
     robot.find_path_and_animate()
